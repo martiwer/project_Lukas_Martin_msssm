@@ -39,9 +39,11 @@ Where is ideal point for this speed intervention and which is the appropriate sp
 
 ## Expected Results
 
-Because this method of reducing the speed limit is actually in use, we hope our models can prove a positive effect on the traffic flow. 
+Because this method of reducing the speed limit is actually in use, we hope our models can prove a positive effect on the traffic flow.
+
 Case 1:
 We expect that if there is an high traffic density, one can improve the traffic flow with a lower speed limit (but not too low!).
+
 Case 2:
 We estimate there will be a specific place ahead the traffic jam, where a speed reduction has a positive effect on prevent or clear a traffic jam.
 
