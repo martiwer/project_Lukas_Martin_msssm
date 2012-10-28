@@ -14,27 +14,36 @@ We want to model the effect of the speed limit reduction and see if this method 
 
 ## The Model
 
-We model a section of a fictitious highway with a high traffic density or even a traffic jam, just with a single lane. The driver model is an "intelligent driver model" (maybe extended with the "human driver model"?).
-So his state of driving depends ond the state of the car in the front and he has a finite reaction time. A driver wants to pass the highway as fast as possible, but also without any crash. So he keeps an safety distance, which
+We model a section of a fictitious two lane highway with a high traffic density. 
+The driver model is an "intelligent driver model" (maybe extended with the "human driver model"?). So the state of a car depends ond the state of the car in the front and his driver has a finite reaction time. The driver wants to pass the highway as fast as possible, but also without any crash. So he keeps an safety distance, which
 depends on the velocity. If you are faster you need more safety distance. Of course the drivers have to respect the speed limit.
 
 
 
 ## Fundamental Questions
 
-Analyze the influence of different speed limits to the traffic flow.
-Does a speed limit reduction prevent an annoying stop-and-go traffich or can one even prevent a traffic jam with a speed limit reduction?
-So is it at all possible to improve the traffic flow with a speed limit reduction?
-What is the ideal speed limit at a specific traffic density and how stable is the system in this case? (Does it drop suddenly?)
+We would like to analyze two cases.
+
+Case 1:
+There's no specific event, which causes a traffic jam. We study the influence of the speed limit on self-induced stop-and-go traffic or even traffic jams, that can suddenly appear on crowded highways.
+What's the ideal speed limit that allows a high traffic flow and at the same time prevents these phenomena?
+
+Case 2:
+We cause a traffic jam by a specific event. For example a sudden temporary slow down of the cars due to the sun which blinds the drivers. We now reduce the speed limit at a certain point some kilometers ahead the traffic jam.
+Is it possible to improve the traffic flow with this method or is the traffic jam just displaced?
+Where is ideal point for this speed intervention and which is the appropriate speed limit?
+
 
 
 
 
 ## Expected Results
 
-Because this method of reducing the speed limit is actually in use, we hope our model can prove a positive effect on the traffic flow. We expect that
-if there is an higher traffic density, one can improve the traffic flow with a lower speed limit (but not to low!).
-
+Because this method of reducing the speed limit is actually in use, we hope our models can prove a positive effect on the traffic flow. 
+Case 1:
+We expect that if there is an high traffic density, one can improve the traffic flow with a lower speed limit (but not too low!).
+Case 2:
+We estimate there will be a specific place ahead the traffic jam, where a speed reduction has a positive effect on prevent or clear a traffic jam.
 
 ## References 
 
