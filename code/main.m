@@ -243,6 +243,5 @@ for time = 0:dt:simend
      % plot time
         text(4/5*l_highway, 1.15*y_dist, ['time= ' num2str(time)])
     pause(0.05)
-    state_1
     
 end
