@@ -30,7 +30,7 @@ nct_1 = 10;        %New Car Time lane 1 [s]
 nct_2 = 3;         %New Car Time lane 1 [s]
 pitnc_1 = 0;       %Point in time new car [s] lane1    
 pitnc_2 = 0;       %Point in time new car [s] lane2
-l_highway = 10000;   %Length Highway [m]
+l_highway = 1000;   %Length Highway [m]
 n_1=2;             %First updated car lane 1
 n_2=2;             %First updated car lane 2
 
@@ -131,7 +131,7 @@ for time = 0:dt:simend
      %Change the vehicles lane 2 to 1
     
     ccc2 = 0;   % Set changing car counter lane 2
-    for vehicle_2 = n_1:size(state_2,1)-1
+    for vehicle_2 = n_2:size(state_2,1)-1
         if (state_2(vehicle_2, icp)>0)
             pos = state_2(vehicle_2, icp) + ccc2;
             state_1_temp_1 = state_1(1:pos-1,:);
@@ -147,10 +147,7 @@ for time = 0:dt:simend
     for i=1:ccc1
         for vehicle_1=n_1:size(state_1,1)-1
             if (state_1(vehicle_1, icp)>0)
-            pos = vehicle_1;
-            state_1_temp_1 = state_1(1:pos-1,:);
-            state_1_temp_2 = state_1(pos+1:size(state_1,1),:);
-            state_1 = [state_1_temp_1; state_1_temp_2];
+            state_1(vehicle_1,:)=[];
             break
             end
         end
@@ -161,10 +158,7 @@ for time = 0:dt:simend
     for i=1:ccc2
         for vehicle_2=n_2:size(state_2,1)-1
             if (state_2(vehicle_2, icp)>0)
-            pos = vehicle_2;
-            state_2_temp_1 = state_2(1:pos-1,:);
-            state_2_temp_2 = state_2(pos+1:size(state_2,1),:);
-            state_2 = [state_2_temp_1; state_2_temp_2];
+            state_2(vehicle_2,:)=[];
             break
             end
         end
@@ -334,7 +328,7 @@ for time = 0:dt:simend
          if (state_2(i,icp)==0)
             draw_car(state_2(i,ix), -y_dist/2, 10, 4, state_2(i,itype));
          else
-            draw_car(state_2(i,ix), -y_dist/2, 10, 4, state_2(i,itype));
+            draw_car(state_2(i,ix), 0, 10, 4, state_2(i,itype));
          end
      end
      % plot time
