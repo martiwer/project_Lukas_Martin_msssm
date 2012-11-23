@@ -30,7 +30,7 @@ nct_1 = 10;        %New Car Time lane 1 [s]
 nct_2 = 3;         %New Car Time lane 1 [s]
 pitnc_1 = 0;       %Point in time new car [s] lane1    
 pitnc_2 = 0;       %Point in time new car [s] lane2
-l_highway = 1000;   %Length Highway [m]
+l_highway = 10000;   %Length Highway [m]
 n_1=2;             %First updated car lane 1
 n_2=2;             %First updated car lane 2
 
@@ -51,18 +51,17 @@ l_t = 16;         %vehicle length [m]
 %Time loop
 for time = 0:dt:simend
 
-    %Determine first updated car in lane 1 and lane 2
-    if(size(state_1,1) > 1)
+    %Delete car which has reached l_highway
+    if(size(state_1,1) > 2)
         if(state_1(n_1,ix)>l_highway) 
-                n_1=n_1+1;
+                state_1(1,:) = [];
         end
     end
-    if(size(state_2,1) > 1)
-        if(state_2(n_2,ix)>l_highway)   
-            n_2=n_2+1;
+    if(size(state_2,1) > 2)
+        if(state_2(n_2,ix)>l_highway) 
+                state_2(1,:) = [];
         end
     end
-   
         
     %Tag changing cars from lane 1 to lane 2
     state_1(:,icp) = zeros(size(state_1,1),1);
