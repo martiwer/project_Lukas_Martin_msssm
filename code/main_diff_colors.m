@@ -12,6 +12,7 @@ iv0 = 4;        %Desired velocity
 iT = 5;         %Safe time headway
 icp = 6;        %Changed position
 itype = 7;      %Type 1:car; 2:truck
+iol = 8;        %Original lane 
 
 
 %Parameters
@@ -26,11 +27,11 @@ l_highway = 2000;   %Length Highway [m]
 n_1=2;             %First updated car lane 1
 n_2=2;             %First updated car lane 2
 
-%States of the Cars [x, v, acc, v0, T, changedposition, type(1:car; 2:truck)]
+%States of the Cars [x, v, acc, v0, T, changedposition, type(1:car; 2:truck), original lane]
 v0_car0 = 120/3.6;    
 T_car0 = 2;           
-state_1 = [l_highway+100 v0_car0 0 v0_car0 T_car0 0 1];  %State of lane 1
-state_2 = [l_highway+100 v0_car0 0 v0_car0 T_car0 0 1];  %State of lane 2
+state_1 = [l_highway+100 v0_car0 0 v0_car0 T_car0 0 1 1];  %State of lane 1
+state_2 = [l_highway+100 v0_car0 0 v0_car0 T_car0 0 1 2];  %State of lane 2
 
 
 %Intelligent Driver Model parameters
@@ -253,7 +254,7 @@ for time = 0:dt:simend
             v0_new = (120+(randn*5))/3.6;       %Desired velocity: 120 km/h with normal distribution with variance 5
             T_new = 2+(randn*0.4);              %Safe time headway: 2 s with normal distribution with variance 0.4
 
-            new_vehicle = [0 v0_new 0 v0_new T_new 0 1];       %Create new vehicle [x, v, acc, v0, T, lane, type(1:car; 2:truck)]
+            new_vehicle = [0 v0_new 0 v0_new T_new 0 1 1];       %Create new vehicle [x, v, acc, v0, T, lane, type(1:car; 2:truck)]
 
             state_1 =[state_1; new_vehicle];    %Add new vehicle
                 
@@ -276,14 +277,14 @@ for time = 0:dt:simend
                 v0_new = (120+(randn*5))/3.6;       %Desired velocity: 120 km/h with normal distribution with variance 5
                 T_new = 2+(randn*0.4);              %Safe time headway: 2 s with normal distribution with variance 0.4
                 
-                new_vehicle = [0 v0_new 0 v0_new T_new 0 1];       %Create new vehicle [x, v, acc, v0, T, lane, type(1:car; 2:truck)]
+                new_vehicle = [0 v0_new 0 v0_new T_new 0 1 2];       %Create new vehicle [x, v, acc, v0, T, lane, type(1:car; 2:truck)]
                 
                 state_2 =[state_2; new_vehicle];    %Add new vehicle
             case 2
                 v0_new = (80+(randn*4))/3.6;       %Desired velocity: 80 km/h with normal distribution with variance 4
                 T_new = 2+(randn*0.4);              %Safe time headway: 2 s with normal distribution with variance 0.4
                 
-                new_vehicle = [0 v0_new 0 v0_new T_new 0 2];       %Create new vehicle [x, v, acc, v0, T, lane, type(1:car; 2:truck)]
+                new_vehicle = [0 v0_new 0 v0_new T_new 0 2 2];       %Create new vehicle [x, v, acc, v0, T, lane, type(1:car; 2:truck)]
                 
                 state_2 =[state_2; new_vehicle];    %Add new vehicle
         end
@@ -314,16 +315,16 @@ for time = 0:dt:simend
      % plot cars
      for i = 1:size(state_1)
          if (state_1(i,icp)==0)
-            draw_car(state_1(i,ix), y_dist/2, 10, 4, state_1(i,itype));
+            draw_car_diff_colors(state_1(i,ix), y_dist/2, 10, 4, state_1(i,itype), state_1(i,iol));
          else
-            draw_car(state_1(i,ix), 0, 10, 4, state_1(i,itype));
+            draw_car_diff_colors(state_1(i,ix), 0, 10, 4, state_1(i,itype), state_1(i,iol));
          end
      end
      for i = 1:size(state_2)
          if (state_2(i,icp)==0)
-            draw_car(state_2(i,ix), -y_dist/2, 10, 4, state_2(i,itype));
+            draw_car_diff_colors(state_2(i,ix), -y_dist/2, 10, 4, state_2(i,itype), state_2(i,iol));
          else
-            draw_car(state_2(i,ix), 0, 10, 4, state_2(i,itype));
+            draw_car_diff_colors(state_2(i,ix), 0, 10, 4, state_2(i,itype), state_2(i,iol));
          end
      end
      % plot time
