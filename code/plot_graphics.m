@@ -1,5 +1,5 @@
-function plot_graphics(simtime, l_highway_start, l_highway_end, withDensity, withVelocity)
-% plot_graphics(simtime, l_highway_start, l_highway_end)
+function plot_graphics(simtime, l_highway_start, l_highway_end, withDensity, withVelocity, withVehicleCounter)
+% plot_graphics(simtime, l_highway_start, l_highway_end, withDensity, withVelocity, withVehicleCounter)
 % plots the traffic density (vehicles/km) and the average speed
 % over a section of highway from l_highway_start to l_highway_end
 
@@ -18,10 +18,17 @@ l_highway = l_highway_end - l_highway_start;
 N = 100;                              %space resolution
 x = linspace(l_highway_start,l_highway_end,5*N+1); %evaluating points
 time_vec = linspace(0,simtime,5*N+1);               %time vector
+time_vec2 = linspace(0,simtime,N/2+1);              %time vector
 Mat_density1 = zeros(5*N+1,5*N+1);  %Spatiotemporal density Matrix lane 1
 Mat_density2 = zeros(5*N+1,5*N+1);  %Spatiotemporal density Matrix lane 2
 Mat_velocity1 = zeros(5*N+1,5*N+1); %Spatiotemporal velocity Matrix lane 1
 Mat_velocity2 = zeros(5*N+1,5*N+1); %Spatiotemporal velocity Matrix lane 2
+Mat_ec = zeros(N/2+1,2);            %Entering cars
+Mat_lc = zeros(N/2+1,2);            %Leaving cars
+ec1_temp = 0;
+ec2_temp = 0;
+lc1_temp = 0;
+lc2_temp = 0;
 
     % Calculate density
     for timestep = 0:1:5*N
@@ -52,6 +59,7 @@ Mat_velocity2 = zeros(5*N+1,5*N+1); %Spatiotemporal velocity Matrix lane 2
                 Mat_density2(timestep+1,place) = counter;
             end
         end
+        
         if (withVelocity)
             for place = 1:(5*N+1)
                 counter = 0;
@@ -89,6 +97,23 @@ Mat_velocity2 = zeros(5*N+1,5*N+1); %Spatiotemporal velocity Matrix lane 2
             end
         end
         
+        if (withVehicleCounter)
+            if (mod(timestep,10) == 0)
+            if (time)
+                %Entering cars
+                Mat_ec(timestep/10+1,1) = ec1 - ec1_temp;
+                Mat_ec(timestep/10+1,2) = ec2 - ec2_temp;
+                ec1_temp = ec1;
+                ec2_temp = ec2;
+                %Leaving cars
+                Mat_lc(timestep/10+1,1) = lc1 - lc1_temp;
+                Mat_lc(timestep/10+1,2) = lc2 - lc2_temp;
+                lc1_temp = lc1;
+                lc2_temp = lc2;
+            end
+            end
+        end
+        
         %Percentage of the progress
         perpro = timestep/(5*N)*100;
         if(mod(perpro, 1) == 0)
@@ -96,6 +121,9 @@ Mat_velocity2 = zeros(5*N+1,5*N+1); %Spatiotemporal velocity Matrix lane 2
             disp(['Progress: ' num2str(perpro) '%'])
         end
     end
+    
+    Mat_ec = Mat_ec/(simtime/(5*N));
+    Mat_lc = Mat_lc/(simtime/(5*N));
     
     if (withDensity)
         % plot density
@@ -135,5 +163,24 @@ Mat_velocity2 = zeros(5*N+1,5*N+1); %Spatiotemporal velocity Matrix lane 2
         ylabel('time');
         title('velocity lane 2 (m/s)');
         colorbar;
+    end
+    
+    if (withVehicleCounter)
+        %plot number of entering cars
+        figure
+        bar(time_vec2,Mat_ec, 'hist')
+        xlabel('time', 'Fontsize', 14);
+        ylabel('Number of entering cars per 10s', 'Fontsize', 14);
+        title('incoming trafficflow', 'Fontsize', 16)
+        legend('lane 1', 'lane 2')
+        set(gca, 'XLim', [0 simtime], 'Fontsize', 12)
+        %plot number of leaving cars
+        figure
+        bar(time_vec2,Mat_lc, 'hist')
+        xlabel('time', 'Fontsize', 14);
+        ylabel('Number of leaving cars per 10s', 'Fontsize', 14);
+        title('outgoing trafficflow', 'Fontsize', 16)
+        legend('lane 1', 'lane 2')
+        set(gca, 'XLim', [0 simtime], 'Fontsize', 12)
     end
 end
