@@ -120,6 +120,13 @@ lc2_temp = 0;
             clc
             disp(['Progress: ' num2str(perpro) '%'])
         end
+        
+        if(time == simtime)
+            avtc = av_time_c/lcc;
+            avtt = av_time_t/ltc;
+            disp(['The average transit time for a car is: ' num2str(avtc)]);
+            disp(['The average transit time for a truck is: ' num2str(avtt)])
+        end
     end
     
     Mat_ec = Mat_ec/(simtime/(5*N));
@@ -166,6 +173,10 @@ lc2_temp = 0;
     end
     
     if (withVehicleCounter)
+        %Incoming traffic flow
+        ictf = sum(Mat_ec,1)/(5*N)*3600
+        %Outgoing traffic flow
+        ogtf = sum(Mat_lc,1)/(5*N)*3600
         %plot number of entering cars
         figure
         bar(time_vec2,Mat_ec, 'hist')

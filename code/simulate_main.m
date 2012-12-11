@@ -1,7 +1,8 @@
-function simulate_main(simtime, l_highway, disturbance, speed_limit, withplot)
-%simulate_main(simtime, l_highway, withdisturbance, disturbance, speed_limit, withplot)
+function simulate_main(simtime, l_highway, disturbance, speed_limit, dir, withplot)
+%simulate_main(simtime, l_highway, disturbance, speed_limit, dir, withplot)
 %Simulates the traffic flow for the duration of simtime
 %disturbance(0:without; 1:lane2; 2:both)
+%dir: direction
 
 %clean up
 close all;
@@ -18,34 +19,43 @@ icp = 6;            %Changed position
 itype = 7;          %Type 1:car; 2:truck
 iol = 8;            %Original lane 
 idili = 9;          %Disturbance and speed limit (0:nothing, 1: only speed limit, 2:only disturbed, 3:both)
+itime = 10;         %Car time elapsed on highway
 
 %Parameters
 dt = 0.1;          %Time Step [s] (needs to be 0.1!!)
 simend = simtime;  %Simulation time [s]
-time = 0;          %Elapsed time [s]
-nct_1 = 10;         %New Car Time lane 1 [s]
-nct_2 = 3;         %New Car Time lane 2 [s]
+nct_1 = 2;         %New Car Time lane 1 [s]
+nct_2 = 5;         %New Car Time lane 2 [s]
+T_d = 1;           %Dead time (has to be a multiple of 0.1)
+dist_factor = 0.6; %Disturbance factor
 pitnc_1 = 0;       %Point in time new car [s] lane1    
 pitnc_2 = 0;       %Point in time new car [s] lane2
 l_highway;         %Length Highway [m]
 n_1=2;             %First updated car lane 1
 n_2=2;             %First updated car lane 2
+
+%Initialize Variables
+time = 0;          %Elapsed time [s]
 ec1 = 0;           %Number of entering cars lane 1
 lc1 = 0;           %Number of leaving cars lane 1
 ec2 = 0;           %Number of entering cars lane 2
 lc2 = 0;           %Number of leaving cars lane 2
 type = 1;          %Initialize type
+av_time_c = 0;     %Average transit time car
+av_time_t = 0;     %Average transit time truck
+lcc = 0;           %Leaving car counter
+ltc = 0;           %Leaving truck counter
+crash = 0;         %Crash Detection
 
 %States of the Cars [x, v, acc, v0, T, changedposition, type(1:car; 2:truck), original lane, disturbance]
 v0_car0 = 120/3.6;    
 T_car0 = 2;           
-state_1 = [l_highway+100 v0_car0 0 v0_car0 T_car0 0 1 1 0];  %State of lane 1
-state_2 = [l_highway+100 v0_car0 0 v0_car0 T_car0 0 1 2 0];  %State of lane 2
+state_1 = [l_highway+100 v0_car0 0 v0_car0 T_car0 0 1 1 0 0];  %State of lane 1
+state_2 = [l_highway+100 v0_car0 0 v0_car0 T_car0 0 1 2 0 0];  %State of lane 2
 
 %Intelligent Driver Model parameters
 %Car
 delta = 5;        %describes acceleration behavior (velocity difference)
-delta1 = delta;   %used delta
 epsilon = 3;      %describes acceleration behavior (gap)
 a_c = 0.6;        %maximal acceleration [m/s^2]
 b_c = 0.9;        %maximal decceleration [m/s^2]
@@ -57,18 +67,29 @@ a_t = 0.2;        %maximal acceleration [m/s^2]
 b_t = 0.4;        %maximal decceleration [m/s^2]
 l_t = 16;         %vehicle length [m]
 
+%Save Parameters
+save([dir '/Parameters'])
+
 %Time loop
 for time = 0:dt:simend
-
+    
+    %Increase elapsed time
+    time_1 = ones(size(state_1,1),1)*dt;
+    time_2 = ones(size(state_2,1),1)*dt;
+    state_1(:,itime) = state_1(:,itime) + time_1;
+    state_2(:,itime) = state_2(:,itime) + time_2;
+    
     %Change vehicles from lane 1 to lane 2
     if(mod(time, 0.2) == 0)        
         %Tag changing cars from lane 1 to lane 2
         state_1(:,icp) = zeros(size(state_1,1),1);
         if(size(state_1,1) > 2)
             %Delete car which has reached l_highway
-            if(state_1(n_1,ix)>l_highway) 
-                    state_1(1,:) = [];
-                    lc1 = lc1 + 1;
+            if(state_1(n_1,ix)>l_highway)
+                av_time_c = av_time_c + state_1(1,itime);
+                lcc = lcc + 1;
+                state_1(1,:) = [];
+                lc1 = lc1 + 1;
             end
             for vehicle_1 = n_1:size(state_1,1)-1
 
@@ -80,22 +101,31 @@ for time = 0:dt:simend
                         vehicle_b = vehicle_2;     %Vehicle behind
 
                         %Check lane change situation
-                        switch state_1(vehicle_1, itype)
-                            case 1
-                                s_a = state_1(vehicle_1, iv)*3.6/2+s0+l_c;          %Minimal gaps
-                            case 2
-                                s_a = state_1(vehicle_1, iv)*3.6/2+s0+l_t;
-                        end                    
+                        v_1 = state_2(vehicle_a, iv);
+                        v = state_1(vehicle_1, iv);
+                        dv = v - v_1;
+                        T = state_1(vehicle_1, iT);
+                        a = a_c;
+                        b = b_c;
+                        l = l_c;
+                        s_a = s0 + max(v*T + (v*dv)/(2*sqrt(a*b)), 0) + l;           %Desired gap to vehicle ahead
+                        
+                        v_1 = state_1(vehicle_1, iv);
+                        v = state_2(vehicle_b, iv);
+                        dv = v - v_1;
+                        T = state_2(vehicle_b, iT);
                         switch state_2(vehicle_b, itype)
-                            case 1
-                                v_1 = state_1(vehicle_1, iv);
-                                v_b = state_2(vehicle_b, iv);
-                                s_b = ((v_b-v_1)*3.6/max(v_b, v_1)+1)*max(v_b, v_1)*3.6/2+s0+l_c;
-                            case 2
-                                v_1 = state_1(vehicle_1, iv);
-                                v_b = state_2(vehicle_b, iv);
-                                s_b = ((v_b-v_1)/max(v_b, v_1)+1)*max(v_b, v_1)*3.6/1.5+s0+l_t;
+                            case 1          %Car
+                                a = a_c;
+                                b = b_c;
+                                l = l_c;
+                            case 2          %Truck
+                                a = a_t;
+                                b = b_t;
+                                l = l_t;
                         end
+                        s_b = s0 + max(v*T + (v*dv)/(2*sqrt(a*b)), 0) + l;           %Desired gap to vehicle behind
+                        
                         c1 = state_2(vehicle_a, ix)-state_1(vehicle_1, ix) > 300;    %Gap to vehicle ahead_2 > 300
                         c2 = state_1(vehicle_1, ix)-state_2(vehicle_b, ix) > s_b;    %Gap to vehicle behind_2 big enough
                         c3 = state_1(vehicle_1, iv0) > state_1(vehicle_1-1, iv);     %v0 > v of vehicle ahead_1
@@ -145,15 +175,22 @@ for time = 0:dt:simend
         end
     end
    
-    %Change vehicles from lane 1 to lane 2
+    %Change vehicles from lane 2 to lane 1
     if(mod(time, 0.2) == 0.1)        
         %Tag changing cars from lane 2 to lane 1
         state_2(:,icp) = zeros(size(state_2,1),1);
         if(size(state_2,1) > 2)
             %Delete car which has reached l_highway
-            if(state_2(n_2,ix)>l_highway) 
-                    state_2(1,:) = [];
-                    lc2 = lc2 + 1;
+            if(state_2(n_2,ix)>l_highway)
+                if(state_2(1,itype) == 1)
+                    av_time_c = av_time_c + state_2(1,itime);
+                    lcc = lcc + 1;
+                else
+                    av_time_t = av_time_t + state_2(1,itime);
+                    ltc = ltc + 1;
+                end
+                state_2(1,:) = [];
+                lc2 = lc2 + 1;
             end
             for vehicle_2 = n_2:size(state_2,1)-1
 
@@ -166,15 +203,31 @@ for time = 0:dt:simend
                             vehicle_b = vehicle_1;     %Vehicle behind
 
                             %Check lane change situation
+                            v_1 = state_1(vehicle_a, iv);
+                            v = state_2(vehicle_2, iv);
+                            dv = v - v_1;
+                            T = state_2(vehicle_2, iT);
                             switch state_2(vehicle_2, itype)
-                                case 1
-                                    s_a = state_2(vehicle_2, iv)*3.6/2+s0+l_c;          %Minimal gaps
-                                case 2
-                                    s_a = state_2(vehicle_2, iv)*3.6/2+s0+l_t;
-                            end                    
-                            v_2 = state_2(vehicle_2, iv);
-                            v_b = state_1(vehicle_b, iv);
-                            s_b = ((v_b-v_2)/max(v_b, v_2)+1)*max(v_b, v_2)*3.6/2+s0+l_c;
+                                case 1          %Car
+                                    a = a_c;
+                                    b = b_c;
+                                    l = l_c;
+                                case 2          %Truck
+                                    a = a_t;
+                                    b = b_t;
+                                    l = l_t;
+                            end
+                            s_a = s0 + max(v*T + (v*dv)/(2*sqrt(a*b)), 0) + l;           %Desired gap to vehicle ahead
+                            
+                            v_1 = state_2(vehicle_2, iv);
+                            v = state_1(vehicle_b, iv);
+                            dv = v - v_1;
+                            T = state_1(vehicle_b, iT);
+                            a = a_c;
+                            b = b_c;
+                            l = l_c;
+                            s_b = s0 + max(v*T + (v*dv)/(2*sqrt(a*b)), 0) + l;           %Desired gap to vehicle behind
+                            
                             c1 = state_1(vehicle_a, ix)-state_2(vehicle_2, ix) > 300;    %Gap to vehicle ahead_1 > 300
                             c2 = state_2(vehicle_2-1, ix)-state_2(vehicle_2, ix) < 200;  %Gap to vehicle ahead_2 < 200
                             c3 = state_2(vehicle_2-1, iv) < state_2(vehicle_2, iv0);     %v of vehicle ahead_2 < v0  
@@ -224,7 +277,7 @@ for time = 0:dt:simend
     end
     
     %Update accelerations of the vehicles from lane 1
-    if(mod(time,0.1) == 0)
+    if(mod(time,T_d) == 0)
         for vehicle = n_1:size(state_1,1)
 
             switch state_1(vehicle, itype)  %Vehicle type?
@@ -248,21 +301,15 @@ for time = 0:dt:simend
             ds = xm1 - x - l;       %gap to the vehicle in front
             dv = v - vm1;           %velocity difference to the vehicle in front
             ss = s0 + max(v*T + (v*dv)/(2*sqrt(a*b)), 0);       %effective desired distance
-            
-            if(state_1(vehicle,idili) == 3 || state_1(vehicle,idili) == 2 && time == 0.2*simend+1)
-                delta1 = 10;
-            end
           
-            state_1(vehicle,iacc) = a*(1 - (v/v0)^delta1 - (ss/ds)^epsilon);    %new acceleration
-            
-            delta1 = delta;
+            state_1(vehicle,iacc) = a*(1 - (v/v0)^delta - (ss/ds)^epsilon);    %new acceleration
 
         end
         
     end
     
     %Update accelerations of the vehicles from lane 2
-    if(mod(time,0.1) == 0)
+    if(mod(time,T_d) == 0)
         for vehicle = n_2:size(state_2,1)
 
             switch state_2(vehicle, itype)  %Vehicle type?
@@ -286,14 +333,8 @@ for time = 0:dt:simend
             ds = xm1 - x - l;       %gap to the vehicle in front
             dv = v - vm1;           %velocity difference to the vehicle in front
             ss = s0 + max(v*T + (v*dv)/(2*sqrt(a*b)), 0);       %effective desired distance
-
-            if(state_2(vehicle,idili) == 3 || state_2(vehicle,idili) == 2 && time == 0.2*simend+1)
-                delta1 = 10;
-            end
             
-            state_2(vehicle,iacc) = a*(1 - (v/v0)^delta1 - (ss/ds)^epsilon);    %new acceleration
-
-            delta1 = delta;
+            state_2(vehicle,iacc) = a*(1 - (v/v0)^delta - (ss/ds)^epsilon);    %new acceleration
             
         end
     
@@ -333,12 +374,12 @@ for time = 0:dt:simend
     
     %Add new vehicle Lane 1
     v0_new = (120+(randn*8))/3.6;       %Desired velocity: 120 km/h with normal distribution with variance 8
-    T_new = 3+(randn*0.4);              %Safe time headway: 2 s with normal distribution with variance 0.4
+    T_new = 2+(randn*0.4);              %Safe time headway: 2 s with normal distribution with variance 0.4
     dv = v0_new - state_1(size(state_1,1), iv);
     ss = s0 + max(v0_new*T_new + (v0_new*dv)/(2*sqrt(a_c*b_c)), 0);
     
     if(state_1(size(state_1,1),ix)>ss && (time-pitnc_1)>nct_1)
-            new_vehicle = [0 v0_new 0 v0_new T_new 0 1 1 0];       %Create new vehicle [x, v, acc, v0, T, changedposition, type(1:car; 2:truck), original lane, disturbance]
+            new_vehicle = [0 v0_new 0 v0_new T_new 0 1 1 0 0];       %Create new vehicle [x, v, acc, v0, T, changedposition, type(1:car; 2:truck), original lane, disturbance]
 
             state_1 = [state_1; new_vehicle];    %Add new vehicle
                 
@@ -350,12 +391,13 @@ for time = 0:dt:simend
     switch type
         case 1
             v0_new = (120+(randn*8))/3.6;       %Desired velocity: 120 km/h with normal distribution with variance 8
-            T_new = 3+(randn*0.4);              %Safe time headway: 2 s with normal distribution with variance 0.4
-            dv = v0_new - state_2(size(state_2,1), iv);
-            ss = s0 + max(v0_new*T_new + (v0_new*dv)/(2*sqrt(a_c*b_c)), 0);
+            v_new = (80+(randn*6))/3.6;         %Actual incoming velocity: 80 km/h with normal distribution with variance 6
+            T_new = 2+(randn*0.4);              %Safe time headway: 2 s with normal distribution with variance 0.4
+            dv = v_new - state_2(size(state_2,1), iv);
+            ss = s0 + max(v_new*T_new + (v_new*dv)/(2*sqrt(a_c*b_c)), 0);
             
             if(state_2(size(state_2,1),ix)>ss && (time-pitnc_2)>nct_2) 
-                new_vehicle = [0 v0_new 0 v0_new T_new 0 1 2 0];        %Create new vehicle [x, v, acc, v0, T, changedposition, type(1:car; 2:truck), original lane, disturbance]
+                new_vehicle = [0 v_new 0 v0_new T_new 0 1 2 0 0];        %Create new vehicle [x, v, acc, v0, T, changedposition, type(1:car; 2:truck), original lane, disturbance]
                 
                 state_2 = [state_2; new_vehicle];    %Add new vehicle
                 
@@ -378,7 +420,7 @@ for time = 0:dt:simend
             ss = s0 + max(v0_new*T_new + (v0_new*dv)/(2*sqrt(a_t*b_t)), 0);
             
             if(state_2(size(state_2,1),ix)>ss && (time-pitnc_2)>nct_2)
-                new_vehicle = [0 v0_new 0 v0_new T_new 0 2 2 0];        %Create new vehicle [x, v, acc, v0, T, changedposition, type(1:car; 2:truck), original lane, disturbance]
+                new_vehicle = [0 v0_new 0 v0_new T_new 0 2 2 0 0];        %Create new vehicle [x, v, acc, v0, T, changedposition, type(1:car; 2:truck), original lane, disturbance]
                 
                 state_2 = [state_2; new_vehicle];    %Add new vehicle
                 
@@ -407,6 +449,7 @@ for time = 0:dt:simend
     for vehicle_1=n_1:size(state_1,1)
         if(state_1(vehicle_1, ix) > state_1(vehicle_1-1, ix) && size(state_1,1) > 1)
             disp('Attention: state_1 not sorted well!!!')
+            crash = 1;
         end
     end
     
@@ -414,13 +457,14 @@ for time = 0:dt:simend
     for vehicle_2=n_2:size(state_2,1)
         if(state_2(vehicle_2, ix) > state_2(vehicle_2-1, ix) && size(state_2,1) > 1)
             disp('Attention: state_2 not sorted well!!!')
+            crash = 1;
         end
     end
     
     %Save states every second
     if (mod(time, 1) == 0)
         %save data\[statefile 'num2str(time)'] time state_1 state_2
-        save(['data/statefile_' num2str(time)], 'time', 'state_1', 'state_2', 'ec1', 'ec2', 'lc1', 'lc2')
+        save([dir '/statefile_' num2str(time)], 'time', 'state_1', 'state_2', 'ec1', 'ec2', 'lc1', 'lc2', 'av_time_c', 'av_time_t', 'lcc', 'ltc', 'crash')
     end
     
     %Disturbance and Speed Limit
@@ -435,7 +479,6 @@ for time = 0:dt:simend
     time_limit_end = time_dist_end + 300;     %End time of speed limit
     
     limit_factor = speed_limit/120;           %Speed limit factor
-    dist_factor = 0.5;                        %Disturbance factor
     dist_factor_l = dist_factor/limit_factor; %Disturbance factor with speed limit
     
     %Speed limit
@@ -448,7 +491,7 @@ for time = 0:dt:simend
                 state_1(vehicle_1, idili) = 1;
             end
 
-            if(state_1(vehicle_1, idili) == 1 && not(state_1(vehicle_1, ix) > pos_limit_start && state_1(vehicle_1, ix) < pos_limit_end))
+            if(state_1(vehicle_1, idili) == 1 && (not(time > time_limit_start && time < time_limit_end) || not(state_1(vehicle_1, ix) > pos_limit_start && state_1(vehicle_1, ix) < pos_limit_end)))
                     state_1(vehicle_1, iv0) = state_1(vehicle_1, iv0) * (1/limit_factor);    %Increase Velocity
                     state_1(vehicle_1, idili) = 0;
             end
@@ -462,7 +505,7 @@ for time = 0:dt:simend
                 state_2(vehicle_2, idili) = 1;
             end
 
-            if(state_2(vehicle_2, itype) == 1 && state_2(vehicle_2, idili) == 1 && not(state_2(vehicle_2, ix) > pos_limit_start && state_2(vehicle_2, ix) < pos_limit_end))
+            if(state_2(vehicle_2, itype) == 1 && state_2(vehicle_2, idili) == 1 && (not(time > time_limit_start && time < time_limit_end) || not(state_2(vehicle_2, ix) > pos_limit_start && state_2(vehicle_2, ix) < pos_limit_end)))
                     state_2(vehicle_2, iv0) = state_2(vehicle_2, iv0) * (1/limit_factor);    %Increase Velocity
                     state_2(vehicle_2, idili) = 0;
             end
@@ -472,6 +515,20 @@ for time = 0:dt:simend
     %Disturbance    
     switch disturbance
         case 1
+            %Lane1
+            for vehicle_1 = n_1:size(state_1,1)
+                
+                 if(state_1(vehicle_1, idili) == 2)
+                     state_1(vehicle_1, iv0) = state_1(vehicle_1, iv0) * (1/dist_factor);     %Increase Velocity without speed limit
+                     state_1(vehicle_1, idili) = 0;
+                 end
+                 if(state_1(vehicle_1, idili) == 3)
+                     state_1(vehicle_1, iv0) = state_1(vehicle_1, iv0) * (1/dist_factor_l);     %Increase Velocity with speed limit
+                     state_1(vehicle_1, idili) = 1;
+                 end
+                
+            end
+            
             %Lane2
             for vehicle_2 = n_2:size(state_2,1)
 
@@ -486,7 +543,7 @@ for time = 0:dt:simend
                     end
                 end
                 
-                if(state_2(vehicle_2, itype) == 1 && not(state_2(vehicle_2, ix) > pos_dist_start && state_2(vehicle_2, ix) < pos_dist_end))
+                if(state_2(vehicle_2, itype) == 1 && (not(time > time_dist_start && time < time_dist_end) || not(state_2(vehicle_2, ix) > pos_dist_start && state_2(vehicle_2, ix) < pos_dist_end)))
                      if(state_2(vehicle_2, idili) == 2)
                          state_2(vehicle_2, iv0) = state_2(vehicle_2, iv0) * (1/dist_factor);     %Increase Velocity without speed limit
                          state_2(vehicle_2, idili) = 0;
@@ -496,7 +553,7 @@ for time = 0:dt:simend
                          state_2(vehicle_2, idili) = 1;
                      end
                 end
-            end
+            end    
           
         case 2
             %Lane1
@@ -513,7 +570,7 @@ for time = 0:dt:simend
                     end
                 end
                 
-                if(state_1(vehicle_1, itype) == 1 && not(state_1(vehicle_1, ix) > pos_dist_start && state_1(vehicle_1, ix) < pos_dist_end))
+                if(state_1(vehicle_1, itype) == 1 && (not(time > time_dist_start && time < time_dist_end) || not(state_1(vehicle_1, ix) > pos_dist_start && state_1(vehicle_1, ix) < pos_dist_end)))
                      if(state_1(vehicle_1, idili) == 2)
                          state_1(vehicle_1, iv0) = state_1(vehicle_1, iv0) * (1/dist_factor);     %Increase Velocity without speed limit
                          state_1(vehicle_1, idili) = 0;
@@ -539,7 +596,7 @@ for time = 0:dt:simend
                     end
                 end
                 
-                if(state_2(vehicle_2, itype) == 1 && not(state_2(vehicle_2, ix) > pos_dist_start && state_2(vehicle_2, ix) < pos_dist_end))
+                if(state_2(vehicle_2, itype) == 1 && (not(time > time_dist_start && time < time_dist_end) || not(state_2(vehicle_2, ix) > pos_dist_start && state_2(vehicle_2, ix) < pos_dist_end)))
                      if(state_2(vehicle_2, idili) == 2)
                          state_2(vehicle_2, iv0) = state_2(vehicle_2, iv0) * (1/dist_factor);     %Increase Velocity without speed limit
                          state_2(vehicle_2, idili) = 0;
