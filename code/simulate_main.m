@@ -1,8 +1,8 @@
-function simulate_main(simtime, l_highway, disturbance, speed_limit, dir, withplot)
-%simulate_main(simtime, l_highway, disturbance, speed_limit, dir, withplot)
-%Simulates the traffic flow for the duration of simtime
-%disturbance(0:without; 1:lane2; 2:both)
-%dir: direction
+function time = simulate_main(simtime, l_highway, disturbance, speed_limit, dir)
+%simulate_main(simtime, l_highway, disturbance, speed_limit, dir)
+%Simulates the traffic flow of a highway with lenght l_highway for the duration of simtime
+%disturbance(0:without; 1:lane2; 2:both; 3:accident)
+%dir: data folder
 
 %clean up
 close all;
@@ -24,8 +24,8 @@ itime = 10;         %Car time elapsed on highway
 %Parameters
 dt = 0.1;          %Time Step [s] (needs to be 0.1!!)
 simend = simtime;  %Simulation time [s]
-nct_1 = 2;         %New Car Time lane 1 [s]
-nct_2 = 5;         %New Car Time lane 2 [s]
+nct_1 = 10;         %New Car Time lane 1 [s]
+nct_2 = 3;         %New Car Time lane 2 [s]
 T_d = 1;           %Dead time (has to be a multiple of 0.1)
 dist_factor = 0.6; %Disturbance factor
 pitnc_1 = 0;       %Point in time new car [s] lane1    
@@ -438,6 +438,210 @@ for time = 0:dt:simend
             
     end
     
+    %Disturbance and Speed Limit
+    pos_dist_start = l_highway * 0.5;         %Starting point of disturbance
+    pos_dist_end = pos_dist_start + 100;      %End point of disturbance
+    time_dist_start = simend * 0.2;           %Start time of disturbance
+    time_dist_end = time_dist_start + 300;    %End time of disturbance
+
+    pos_limit_start = l_highway * 0.3;        %Starting point of speed limit
+    pos_limit_end = pos_dist_end + 1000;      %End point of speed limit
+    time_limit_start = time_dist_start + 60;  %Start time of speed limit
+    time_limit_end = time_dist_end + 600;     %End time of speed limit
+    
+    limit_factor = speed_limit/120;           %Speed limit factor
+    dist_factor_l = dist_factor/limit_factor; %Disturbance factor with speed limit
+    
+    %Speed limit
+    if(speed_limit > 0)
+        %Lane1
+        for vehicle_1 = n_1:size(state_1,1)
+
+            if(time > time_limit_start && time < time_limit_end && state_1(vehicle_1, idili) == 0 && state_1(vehicle_1, ix) > pos_limit_start && state_1(vehicle_1, ix) < pos_limit_end)
+                state_1(vehicle_1, iv0) = state_1(vehicle_1, iv0) * limit_factor;            %Decrease velocity
+                state_1(vehicle_1, idili) = 1;
+            end
+
+            if(state_1(vehicle_1, idili) == 1 && (not(time > time_limit_start && time < time_limit_end) || not(state_1(vehicle_1, ix) > pos_limit_start && state_1(vehicle_1, ix) < pos_limit_end)))
+                    state_1(vehicle_1, iv0) = state_1(vehicle_1, iv0) * (1/limit_factor);    %Increase velocity
+                    state_1(vehicle_1, idili) = 0;
+            end
+        end
+
+        %Lane2
+        for vehicle_2 = n_2:size(state_2,1)
+
+            if(time > time_limit_start && time < time_limit_end && state_2(vehicle_2, itype) == 1 && state_2(vehicle_2, idili) == 0 && state_2(vehicle_2, ix) > pos_limit_start && state_2(vehicle_2, ix) < pos_limit_end)
+                state_2(vehicle_2, iv0) = state_2(vehicle_2, iv0) * limit_factor;            %Decrease velocity
+                state_2(vehicle_2, idili) = 1;
+            end
+
+            if(state_2(vehicle_2, itype) == 1 && state_2(vehicle_2, idili) == 1 && (not(time > time_limit_start && time < time_limit_end) || not(state_2(vehicle_2, ix) > pos_limit_start && state_2(vehicle_2, ix) < pos_limit_end)))
+                    state_2(vehicle_2, iv0) = state_2(vehicle_2, iv0) * (1/limit_factor);    %Increase velocity
+                    state_2(vehicle_2, idili) = 0;
+            end
+        end
+    end
+          
+    %Disturbance    
+    switch disturbance
+        case 1
+            %Lane1
+            for vehicle_1 = n_1:size(state_1,1)
+                
+                 if(state_1(vehicle_1, idili) == 2)
+                     state_1(vehicle_1, iv0) = state_1(vehicle_1, iv0) * (1/dist_factor);       %Increase velocity without speed limit
+                     state_1(vehicle_1, idili) = 0;
+                 end
+                 if(state_1(vehicle_1, idili) == 3)
+                     state_1(vehicle_1, iv0) = state_1(vehicle_1, iv0) * (1/dist_factor_l);     %Increase velocity with speed limit
+                     state_1(vehicle_1, idili) = 1;
+                 end
+                
+            end
+            
+            %Lane2
+            for vehicle_2 = n_2:size(state_2,1)
+
+                if(time > time_dist_start && time < time_dist_end && state_2(vehicle_2, itype) == 1 && state_2(vehicle_2, ix) > pos_dist_start && state_2(vehicle_2, ix) < pos_dist_end)
+                    if(state_2(vehicle_2, idili) == 0)
+                        state_2(vehicle_2, iv0) = state_2(vehicle_2, iv0) * dist_factor;          %Decrease velocity without speed limit
+                        state_2(vehicle_2, idili) = 2;
+                    end
+                    if(state_2(vehicle_2, idili) == 1)
+                        state_2(vehicle_2, iv0) = state_2(vehicle_2, iv0) * dist_factor_l;        %Decrease velocity with speed limit
+                        state_2(vehicle_2, idili) = 3;
+                    end
+                end
+                
+                if(state_2(vehicle_2, itype) == 1 && (not(time > time_dist_start && time < time_dist_end) || not(state_2(vehicle_2, ix) > pos_dist_start && state_2(vehicle_2, ix) < pos_dist_end)))
+                     if(state_2(vehicle_2, idili) == 2)
+                         state_2(vehicle_2, iv0) = state_2(vehicle_2, iv0) * (1/dist_factor);     %Increase velocity without speed limit
+                         state_2(vehicle_2, idili) = 0;
+                     end
+                     if(state_2(vehicle_2, idili) == 3)
+                         state_2(vehicle_2, iv0) = state_2(vehicle_2, iv0) * (1/dist_factor_l);   %Increase velocity with speed limit
+                         state_2(vehicle_2, idili) = 1;
+                     end
+                end
+            end    
+          
+        case 2
+            %Lane1
+            for vehicle_1 = n_1:size(state_1,1)
+
+                if(time > time_dist_start && time < time_dist_end && state_1(vehicle_1, itype) == 1 && state_1(vehicle_1, ix) > pos_dist_start && state_1(vehicle_1, ix) < pos_dist_end)
+                    if(state_1(vehicle_1, idili) == 0)
+                        state_1(vehicle_1, iv0) = state_1(vehicle_1, iv0) * dist_factor;          %Decrease velocity without speed limit
+                        state_1(vehicle_1, idili) = 2;
+                    end
+                    if(state_1(vehicle_1, idili) == 1)
+                        state_1(vehicle_1, iv0) = state_1(vehicle_1, iv0) * dist_factor_l;        %Decrease velocity with speed limit
+                        state_1(vehicle_1, idili) = 3;
+                    end
+                end
+                
+                if(state_1(vehicle_1, itype) == 1 && (not(time > time_dist_start && time < time_dist_end) || not(state_1(vehicle_1, ix) > pos_dist_start && state_1(vehicle_1, ix) < pos_dist_end)))
+                     if(state_1(vehicle_1, idili) == 2)
+                         state_1(vehicle_1, iv0) = state_1(vehicle_1, iv0) * (1/dist_factor);     %Increase velocity without speed limit
+                         state_1(vehicle_1, idili) = 0;
+                     end
+                     if(state_1(vehicle_1, idili) == 3)
+                         state_1(vehicle_1, iv0) = state_1(vehicle_1, iv0) * (1/dist_factor_l);   %Increase velocity with speed limit
+                         state_1(vehicle_1, idili) = 1;
+                     end
+                end
+            end
+            
+            %Lane2
+            for vehicle_2 = n_2:size(state_2,1)
+
+                if(time > time_dist_start && time < time_dist_end && state_2(vehicle_2, itype) == 1 && state_2(vehicle_2, ix) > pos_dist_start && state_2(vehicle_2, ix) < pos_dist_end)
+                    if(state_2(vehicle_2, idili) == 0)
+                        state_2(vehicle_2, iv0) = state_2(vehicle_2, iv0) * dist_factor;          %Decrease velocity without speed limit
+                        state_2(vehicle_2, idili) = 2;
+                    end
+                    if(state_2(vehicle_2, idili) == 1)
+                        state_2(vehicle_2, iv0) = state_2(vehicle_2, iv0) * dist_factor_l;        %Decrease velocity with speed limit
+                        state_2(vehicle_2, idili) = 3;
+                    end
+                end
+                
+                if(state_2(vehicle_2, itype) == 1 && (not(time > time_dist_start && time < time_dist_end) || not(state_2(vehicle_2, ix) > pos_dist_start && state_2(vehicle_2, ix) < pos_dist_end)))
+                     if(state_2(vehicle_2, idili) == 2)
+                         state_2(vehicle_2, iv0) = state_2(vehicle_2, iv0) * (1/dist_factor);     %Increase velocity without speed limit
+                         state_2(vehicle_2, idili) = 0;
+                     end
+                     if(state_2(vehicle_2, idili) == 3)
+                         state_2(vehicle_2, iv0) = state_2(vehicle_2, iv0) * (1/dist_factor_l);   %Increase velocity with speed limit
+                         state_2(vehicle_2, idili) = 1;
+                     end
+                end
+            end
+            
+        case 3
+            %Lane 1
+            for vehicle_1 = n_1:size(state_1,1)
+
+                if(time > time_dist_start && time < time_dist_end && state_1(vehicle_1, ix) > pos_dist_start && state_1(vehicle_1, ix) < pos_dist_end)
+                    if(state_1(vehicle_1, idili) == 0)
+                        state_1(vehicle_1, iv0) = 1;          %Decrease velocity (~= 1 m/s)
+                        state_1(vehicle_1, idili) = 2;
+                    end
+                    if(state_1(vehicle_1, idili) == 1)
+                        state_1(vehicle_1, iv0) = 1;          %Decrease velocity (~= 1 m/s) 
+                        state_1(vehicle_1, idili) = 3;
+                    end
+                end
+                
+                if(not(time > time_dist_start && time < time_dist_end) || state_1(vehicle_1, ix) > pos_dist_end)
+                     if(state_1(vehicle_1, idili) == 2)
+                         state_1(vehicle_1, iv0) = (120+(randn*8))/3.6;     %Increase velocity
+                         state_1(vehicle_1, idili) = 0;
+                     end
+                     if(state_1(vehicle_1, idili) == 3)
+                         state_1(vehicle_1, iv0) = (120+(randn*8))/3.6 * limit_factor;     %Increase velocity
+                         state_1(vehicle_1, idili) = 1;
+                     end
+                end
+            end
+            
+            %Lane 2
+            for vehicle_2 = n_2:size(state_2,1)
+
+                if(time > time_dist_start && time < time_dist_end && state_2(vehicle_2, ix) > pos_dist_start && state_2(vehicle_2, ix) < pos_dist_end)
+                    if(state_2(vehicle_2, idili) == 0)
+                        state_2(vehicle_2, iv0) = 1;          %Decrease velocity (~= 1 m/s)
+                        state_2(vehicle_2, idili) = 2;
+                    end
+                    if(state_2(vehicle_2, idili) == 1)
+                        state_2(vehicle_2, iv0) = 1;          %Decrease velocity (~= 1 m/s)
+                        state_2(vehicle_2, idili) = 3;
+                    end
+                end
+                
+                if(not(time > time_dist_start && time < time_dist_end) || state_2(vehicle_2, ix) > pos_dist_end)
+                     if(state_2(vehicle_2, idili) == 2)
+                         if(state_2(vehicle_2, itype) == 1)
+                            state_2(vehicle_2, iv0) = (120+(randn*8))/3.6;      %Increase velocity of a car
+                         else
+                            state_2(vehicle_2, iv0) = (80+(randn*4))/3.6;       %Increase velocity of a truck
+                         end
+                         state_2(vehicle_2, idili) = 0;
+                     end
+                     if(state_2(vehicle_2, idili) == 3)
+                         if(state_2(vehicle_2, itype) == 1)
+                            state_2(vehicle_2, iv0) = (120+(randn*8))/3.6 * limit_factor;      %Increase velocity of a car
+                         else
+                            state_2(vehicle_2, iv0) = (80+(randn*4))/3.6 * limit_factor;       %Increase velocity of a truck
+                         end
+                         state_2(vehicle_2, idili) = 1;
+                     end
+                end
+                
+            end
+    end
+    
     %Percentage of the progress
     perpro = time/simend*100;
     if(mod(perpro, 1) == 0)
@@ -460,193 +664,16 @@ for time = 0:dt:simend
             crash = 1;
         end
     end
-    
+     
     %Save states every second
     if (mod(time, 1) == 0)
         %save data\[statefile 'num2str(time)'] time state_1 state_2
         save([dir '/statefile_' num2str(time)], 'time', 'state_1', 'state_2', 'ec1', 'ec2', 'lc1', 'lc2', 'av_time_c', 'av_time_t', 'lcc', 'ltc', 'crash')
     end
     
-    %Disturbance and Speed Limit
-    pos_dist_start = l_highway * 0.5;         %Starting point of disturbance
-    pos_dist_end = pos_dist_start + 1000;     %End point of disturbance
-    time_dist_start = simend * 0.2;           %Start time of disturbance
-    time_dist_end = time_dist_start + 600;    %End time of disturbance
-
-    pos_limit_start = l_highway * 0.3;        %Starting point of speed limit
-    pos_limit_end = pos_dist_end + 1000;      %End point of speed limit
-    time_limit_start = simend * 0.15;         %Start time of speed limit
-    time_limit_end = time_dist_end + 300;     %End time of speed limit
-    
-    limit_factor = speed_limit/120;           %Speed limit factor
-    dist_factor_l = dist_factor/limit_factor; %Disturbance factor with speed limit
-    
-    %Speed limit
-    if(speed_limit > 0)
-        %Lane1
-        for vehicle_1 = n_1:size(state_1,1)
-
-            if(time > time_limit_start && time < time_limit_end && state_1(vehicle_1, idili) == 0 && state_1(vehicle_1, ix) > pos_limit_start && state_1(vehicle_1, ix) < pos_limit_end)
-                state_1(vehicle_1, iv0) = state_1(vehicle_1, iv0) * limit_factor;           %Decrease Velocity
-                state_1(vehicle_1, idili) = 1;
-            end
-
-            if(state_1(vehicle_1, idili) == 1 && (not(time > time_limit_start && time < time_limit_end) || not(state_1(vehicle_1, ix) > pos_limit_start && state_1(vehicle_1, ix) < pos_limit_end)))
-                    state_1(vehicle_1, iv0) = state_1(vehicle_1, iv0) * (1/limit_factor);    %Increase Velocity
-                    state_1(vehicle_1, idili) = 0;
-            end
-        end
-
-        %Lane2
-        for vehicle_2 = n_2:size(state_2,1)
-
-            if(time > time_limit_start && time < time_limit_end && state_2(vehicle_2, itype) == 1 && state_2(vehicle_2, idili) == 0 && state_2(vehicle_2, ix) > pos_limit_start && state_2(vehicle_2, ix) < pos_limit_end)
-                state_2(vehicle_2, iv0) = state_2(vehicle_2, iv0) * limit_factor;            %Decrease Velocity
-                state_2(vehicle_2, idili) = 1;
-            end
-
-            if(state_2(vehicle_2, itype) == 1 && state_2(vehicle_2, idili) == 1 && (not(time > time_limit_start && time < time_limit_end) || not(state_2(vehicle_2, ix) > pos_limit_start && state_2(vehicle_2, ix) < pos_limit_end)))
-                    state_2(vehicle_2, iv0) = state_2(vehicle_2, iv0) * (1/limit_factor);    %Increase Velocity
-                    state_2(vehicle_2, idili) = 0;
-            end
-        end
-    end
-          
-    %Disturbance    
-    switch disturbance
-        case 1
-            %Lane1
-            for vehicle_1 = n_1:size(state_1,1)
-                
-                 if(state_1(vehicle_1, idili) == 2)
-                     state_1(vehicle_1, iv0) = state_1(vehicle_1, iv0) * (1/dist_factor);     %Increase Velocity without speed limit
-                     state_1(vehicle_1, idili) = 0;
-                 end
-                 if(state_1(vehicle_1, idili) == 3)
-                     state_1(vehicle_1, iv0) = state_1(vehicle_1, iv0) * (1/dist_factor_l);     %Increase Velocity with speed limit
-                     state_1(vehicle_1, idili) = 1;
-                 end
-                
-            end
-            
-            %Lane2
-            for vehicle_2 = n_2:size(state_2,1)
-
-                if(time > time_dist_start && time < time_dist_end && state_2(vehicle_2, itype) == 1 && state_2(vehicle_2, ix) > pos_dist_start && state_2(vehicle_2, ix) < pos_dist_end)
-                    if(state_2(vehicle_2, idili) == 0)
-                        state_2(vehicle_2, iv0) = state_2(vehicle_2, iv0) * dist_factor;          %Decrease Velocity without speed limit
-                        state_2(vehicle_2, idili) = 2;
-                    end
-                    if(state_2(vehicle_2, idili) == 1)
-                        state_2(vehicle_2, iv0) = state_2(vehicle_2, iv0) * dist_factor_l;        %Decrease Velocity with speed limit
-                        state_2(vehicle_2, idili) = 3;
-                    end
-                end
-                
-                if(state_2(vehicle_2, itype) == 1 && (not(time > time_dist_start && time < time_dist_end) || not(state_2(vehicle_2, ix) > pos_dist_start && state_2(vehicle_2, ix) < pos_dist_end)))
-                     if(state_2(vehicle_2, idili) == 2)
-                         state_2(vehicle_2, iv0) = state_2(vehicle_2, iv0) * (1/dist_factor);     %Increase Velocity without speed limit
-                         state_2(vehicle_2, idili) = 0;
-                     end
-                     if(state_2(vehicle_2, idili) == 3)
-                         state_2(vehicle_2, iv0) = state_2(vehicle_2, iv0) * (1/dist_factor_l);     %Increase Velocity with speed limit
-                         state_2(vehicle_2, idili) = 1;
-                     end
-                end
-            end    
-          
-        case 2
-            %Lane1
-            for vehicle_1 = n_1:size(state_1,1)
-
-                if(time > time_dist_start && time < time_dist_end && state_1(vehicle_1, itype) == 1 && state_1(vehicle_1, ix) > pos_dist_start && state_1(vehicle_1, ix) < pos_dist_end)
-                    if(state_1(vehicle_1, idili) == 0)
-                        state_1(vehicle_1, iv0) = state_1(vehicle_1, iv0) * dist_factor;          %Decrease Velocity without speed limit
-                        state_1(vehicle_1, idili) = 2;
-                    end
-                    if(state_1(vehicle_1, idili) == 1)
-                        state_1(vehicle_1, iv0) = state_1(vehicle_1, iv0) * dist_factor_l;        %Decrease Velocity with speed limit
-                        state_1(vehicle_1, idili) = 3;
-                    end
-                end
-                
-                if(state_1(vehicle_1, itype) == 1 && (not(time > time_dist_start && time < time_dist_end) || not(state_1(vehicle_1, ix) > pos_dist_start && state_1(vehicle_1, ix) < pos_dist_end)))
-                     if(state_1(vehicle_1, idili) == 2)
-                         state_1(vehicle_1, iv0) = state_1(vehicle_1, iv0) * (1/dist_factor);     %Increase Velocity without speed limit
-                         state_1(vehicle_1, idili) = 0;
-                     end
-                     if(state_1(vehicle_1, idili) == 3)
-                         state_1(vehicle_1, iv0) = state_1(vehicle_1, iv0) * (1/dist_factor_l);     %Increase Velocity with speed limit
-                         state_1(vehicle_1, idili) = 1;
-                     end
-                end
-            end
-            
-            %Lane2
-            for vehicle_2 = n_2:size(state_2,1)
-
-                if(time > time_dist_start && time < time_dist_end && state_2(vehicle_2, itype) == 1 && state_2(vehicle_2, ix) > pos_dist_start && state_2(vehicle_2, ix) < pos_dist_end)
-                    if(state_2(vehicle_2, idili) == 0)
-                        state_2(vehicle_2, iv0) = state_2(vehicle_2, iv0) * dist_factor;          %Decrease Velocity without speed limit
-                        state_2(vehicle_2, idili) = 2;
-                    end
-                    if(state_2(vehicle_2, idili) == 1)
-                        state_2(vehicle_2, iv0) = state_2(vehicle_2, iv0) * dist_factor_l;        %Decrease Velocity with speed limit
-                        state_2(vehicle_2, idili) = 3;
-                    end
-                end
-                
-                if(state_2(vehicle_2, itype) == 1 && (not(time > time_dist_start && time < time_dist_end) || not(state_2(vehicle_2, ix) > pos_dist_start && state_2(vehicle_2, ix) < pos_dist_end)))
-                     if(state_2(vehicle_2, idili) == 2)
-                         state_2(vehicle_2, iv0) = state_2(vehicle_2, iv0) * (1/dist_factor);     %Increase Velocity without speed limit
-                         state_2(vehicle_2, idili) = 0;
-                     end
-                     if(state_2(vehicle_2, idili) == 3)
-                         state_2(vehicle_2, iv0) = state_2(vehicle_2, iv0) * (1/dist_factor_l);     %Increase Velocity with speed limit
-                         state_2(vehicle_2, idili) = 1;
-                     end
-                end
-            end
-    end
-    
-    %Plot street
-    if(withplot)
-        clf;
-        y_dist=0.5;
-        plot(0:l_highway, 0*(0:l_highway), 'Color', [.75 .75 .75], 'LineWidth', 600)
-        hold on;
-        plot([0,l_highway] ,[0,0],'--w','LineWidth', 1)
-        hold on;
-        plot([0,l_highway] ,[-y_dist,-y_dist],'k','LineWidth', 2)
-        hold on;
-        plot([0,l_highway] ,[y_dist,y_dist],'k','LineWidth', 2)
-        xlim([0 l_highway])
-        ylim([-1.5*y_dist 1.5*y_dist])
-        xlabel('Position [m]')
-        
-        %Plot cars
-        for i = 1:size(state_1)
-            
-            if (state_1(i,icp)==0)
-                draw_car_diff_colors(state_1(i,ix), y_dist/2, 10, 4, state_1(i,itype), state_1(i,iol));
-            else
-                draw_car_diff_colors(state_1(i,ix), 0, 10, 4, state_1(i,itype), state_1(i,iol));
-            end
-            
-        end
-        for i = 1:size(state_2)
-            
-            if (state_2(i,icp)==0)
-                draw_car_diff_colors(state_2(i,ix), -y_dist/2, 10, 4, state_2(i,itype), state_2(i,iol));
-            else
-                draw_car_diff_colors(state_2(i,ix), 0, 10, 4, state_2(i,itype), state_2(i,iol));
-            end
-            
-        end
-        
-        %Plot time
-        text(4/5*l_highway, 1.15*y_dist, ['time= ' num2str(time)])
-        pause(0.05)
+    %Break if crash
+    if(crash)
+        break;
     end
      
 end

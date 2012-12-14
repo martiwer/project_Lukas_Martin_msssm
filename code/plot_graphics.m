@@ -1,7 +1,7 @@
 function plot_graphics(simtime, l_highway_start, l_highway_end, withDensity, withVelocity, withVehicleCounter)
-% plot_graphics(simtime, l_highway_start, l_highway_end, withDensity, withVelocity, withVehicleCounter)
-% plots the traffic density (vehicles/km) and the average speed
-% over a section of highway from l_highway_start to l_highway_end
+%plot_graphics(simtime, l_highway_start, l_highway_end, withDensity, withVelocity, withVehicleCounter)
+%plots the traffic density (vehicles/km), the average speed and the outgoing 
+%traffic flow over a section of highway from l_highway_start to l_highway_end
 
 %Indexes of the state matrix
 ix = 1;         %Position
@@ -15,8 +15,8 @@ iol = 8;        %Original lane
 
 %Define Parameters
 l_highway = l_highway_end - l_highway_start;
-N = 100;                              %space resolution
-x = linspace(l_highway_start,l_highway_end,5*N+1); %evaluating points
+N = 100;                            %space resolution
+x = linspace(l_highway_start,l_highway_end,5*N+1);  %evaluating points
 time_vec = linspace(0,simtime,5*N+1);               %time vector
 time_vec2 = linspace(0,simtime,N/2+1);              %time vector
 Mat_density1 = zeros(5*N+1,5*N+1);  %Spatiotemporal density Matrix lane 1
@@ -30,50 +30,58 @@ ec2_temp = 0;
 lc1_temp = 0;
 lc2_temp = 0;
 
-    % Calculate density
+    %Calculate density
     for timestep = 0:1:5*N
+        
         % load statefile
         time = round(time_vec(timestep+1));
         load(['data/statefile_' num2str(time)])
-        if (withDensity)
+        if(withDensity)
             for place = 1:(5*N+1)
                 counter = 0;
                 for vehicle_1 = 1:size(state_1,1)
-                    if (state_1(vehicle_1,ix) < x(place) - 500)
+                    
+                    if(state_1(vehicle_1,ix) < x(place) - 500)
                         break
                     end
-                    if (state_1(vehicle_1,ix) < x(place) + 500)
+                    if(state_1(vehicle_1,ix) < x(place) + 500)
                         counter = counter + 1;
-                    end                
+                    end    
+                    
                 end
                 Mat_density1(timestep+1,place) = counter;
                 counter = 0;
                 for vehicle_2 = 1:size(state_2,1)
-                    if (state_2(vehicle_2,ix) < x(place) - 500)
+                    
+                    if(state_2(vehicle_2,ix) < x(place) - 500)
                         break
                     end
-                    if (state_2(vehicle_2,ix) < x(place) + 500)
+                    if(state_2(vehicle_2,ix) < x(place) + 500)
                         counter = counter + 1;
-                    end                
+                    end 
+                    
                 end
                 Mat_density2(timestep+1,place) = counter;
             end
         end
         
-        if (withVelocity)
+        if(withVelocity)
             for place = 1:(5*N+1)
+                
                 counter = 0;
                 av_v = 0;
                 for vehicle_1 = 1:size(state_1,1)
-                    if (state_1(vehicle_1,ix) < x(place) - 100)
+                    
+                    if(state_1(vehicle_1,ix) < x(place) - 100)
                             break
                     end
-                    if (state_1(vehicle_1,ix) < x(place) + 100)
+                    if(state_1(vehicle_1,ix) < x(place) + 100)
                             counter = counter + 1;
                             av_v = av_v + state_1(vehicle_1,iv);
                     end
+                    
                 end
-                if (counter)
+                if(counter)
                     Mat_velocity1(timestep+1,place) = av_v/counter;
                 else
                     Mat_velocity1(timestep+1,place) = 0;
@@ -81,15 +89,17 @@ lc2_temp = 0;
                 counter = 0;
                 av_v = 0;
                 for vehicle_2 = 1:size(state_2,1)
-                    if (state_2(vehicle_2,ix) < x(place) - 100)
+                    
+                    if(state_2(vehicle_2,ix) < x(place) - 100)
                             break
                     end
-                    if (state_2(vehicle_2,ix) < x(place) + 100)
+                    if(state_2(vehicle_2,ix) < x(place) + 100)
                             counter = counter + 1;
                             av_v = av_v + state_2(vehicle_2,iv);
                     end
+                    
                 end
-                if (counter)
+                if(counter)
                     Mat_velocity2(timestep+1,place) = av_v/counter;
                 else
                     Mat_velocity2(timestep+1,place) = 0;
@@ -97,9 +107,9 @@ lc2_temp = 0;
             end
         end
         
-        if (withVehicleCounter)
-            if (mod(timestep,10) == 0)
-            if (time)
+        if(withVehicleCounter)
+            if(mod(timestep,10) == 0)
+            if(time)
                 %Entering cars
                 Mat_ec(timestep/10+1,1) = ec1 - ec1_temp;
                 Mat_ec(timestep/10+1,2) = ec2 - ec2_temp;
@@ -132,7 +142,7 @@ lc2_temp = 0;
     Mat_ec = Mat_ec/(simtime/(5*N));
     Mat_lc = Mat_lc/(simtime/(5*N));
     
-    if (withDensity)
+    if(withDensity)
         % plot density
         figure
         surf(x, time_vec, Mat_density1, 'EdgeColor', 'none');
@@ -150,7 +160,7 @@ lc2_temp = 0;
         colorbar;
     end
     
-    if (withVelocity)
+    if(withVelocity)
         % plot velocity
         figure
         hold on
@@ -172,7 +182,7 @@ lc2_temp = 0;
         colorbar;
     end
     
-    if (withVehicleCounter)
+    if(withVehicleCounter)
         %Incoming traffic flow
         ictf = sum(Mat_ec,1)/(5*N)*3600
         %Outgoing traffic flow
